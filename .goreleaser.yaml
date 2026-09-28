@@ -58,6 +58,8 @@ signs:
 homebrew_casks:
   - name: sme
     binaries: [sme]
+    # no tap token (e.g. forks, or before it's configured) → build the cask but don't push it
+    skip_upload: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}false{{ else }}true{{ end }}'
     repository:
       owner: syncmyenv
       name: homebrew-tap

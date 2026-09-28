@@ -28,6 +28,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
       - uses: actions/attest-build-provenance@v2
+        # attest whatever was built, even if a later publishing step (e.g. the tap) failed
+        if: ${{ !cancelled() && hashFiles('dist/*.tar.gz') != '' }}
         with:
           subject-path: |
             dist/*.tar.gz
