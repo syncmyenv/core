@@ -10,8 +10,9 @@ file watcher, version history, restore and sync.
 ```bash
 go mod tidy          # first time only
 make build           # -> bin/syncmyenv (+ bin/sme symlink)
-./bin/syncmyenv scan ~/Projects ~/Work
-./bin/syncmyenv scan ~/Projects --json
+./bin/sme init                       # create vault, prints your recovery key
+./bin/sme status
+./bin/sme scan ~/Projects ~/Work
 ```
 
 ## Status
@@ -19,7 +20,10 @@ make build           # -> bin/syncmyenv (+ bin/sme symlink)
 | Command | Status |
 |---|---|
 | `scan` | ✅ works — discovers `.env`, `.env.*`, `env`, `env.*`; skips templates, `node_modules`, `.git`, etc. |
-| `init`, `protect`, `list`, `status`, `history`, `restore`, `daemon` | Phase 1 (stubs) |
+| `init` | ✅ post-quantum vault key, wrapped by master password + recovery key |
+| `status` | ✅ vault info (files/sync come with `protect`) |
+| `keys verify`, `keys passwd` | ✅ check password/recovery key, change password (or reset via recovery key) |
+| `protect`, `list`, `history`, `restore`, `daemon` | Phase 1 — next |
 | `sync` | Phase 2 |
 | `share` | Phase 4 |
 

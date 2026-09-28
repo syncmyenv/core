@@ -9,19 +9,50 @@
 ## Key hierarchy
 
 ```text
-master password ──Argon2id──► KEK₁ ─┐
-                                    ├─ wraps ─► vault identity (X25519 private key)
-recovery key (printed at init) ──► KEK₂ ─┘
-                                              │
-                               vault recipient (public key)
-                                              │
-               daemon encrypts each revision to the public key (age)
+master password ──argon2id (64MiB,t3,p4)──▶ KEK₁ ─┐
+                                                  ├─ XChaCha20-Poly1305 ─▶ vault identity
+recovery key (240 bit) ──hkdf-sha256──────▶ KEK₂ ─┘   age hybrid ML-KEM-768 + X25519
+                                                              │
+                                              vault recipient age1pq1… (public)
+                                                              │
+                                  daemon seals every revision to the recipient
 ```
 
-- The daemon only needs the **public** key → runs unattended, can't read old secrets.
-- `history --show`, `restore`, `share` unlock the identity (password, or OS keychain session).
-- New devices get the wrapped identity from remote and unlock it with the password or recovery key.
-- Content dedup/change detection: `HMAC-SHA256(vault_mac_key, plaintext)` — never a bare hash.
+- **Post-quantum**: the vault key is an age *hybrid* identity (ML-KEM-768 + X25519).
+  Synced ciphertext lives on remotes for years; hybrid keys stay safe even if it's
+  harvested now and attacked with a future quantum computer.
+- The daemon only needs the **public** recipient → runs unattended, can't read old secrets.
+- `history --show`, `restore`, `share` unlock the identity in memory.
+- **MAC key** for change detection/dedup = HKDF(identity, "syncmyenv/v1/mac-key").
+  Never a bare hash of plaintext (short values would be brute-forceable).
+- Fingerprint (for humans comparing machines): first 8 bytes of SHA-256(recipient),
+  shown as `9260:57df:5528:0f29`.
+
+### Key file (`~/.syncmyenv/keys.json`, 0600)
+
+```json
+{
+  "version": 1,
+  "recipient": "age1pq1…",
+  "created_at": "…",
+  "password": { "kdf": "argon2id", "argon": {"m": 65536, "t": 3, "p": 4}, "salt": "…", "nonce": "…", "ciphertext": "…" },
+  "recovery": { "kdf": "hkdf-sha256", "salt": "…", "nonce": "…", "ciphertext": "…" }
+}
+```
+
+- Each wrapped blob's AEAD associated data is `syncmyenv/keyfile/v1/<method>/<recipient>`,
+  so blobs can't be swapped between methods or vaults, and the recipient can't be replaced.
+- Argon2 params are stored per file (upgradeable) with a floor, so a tampered file can't
+  downgrade them.
+- Written atomically (temp + fsync + rename). `init` refuses to overwrite an existing vault.
+- Safe to sync to remotes: it holds no plaintext secret. New devices fetch it and unlock
+  with the password or recovery key.
+
+### Recovery key
+
+`SME1-XXXX-…` — 240 random bits + 16-bit checksum, Crockford base32 (no I/L/O/U;
+look-alikes accepted when typing). Shown once at `init`. Typos are caught by the checksum
+before an unlock attempt.
 
 ## Local vault (`~/.syncmyenv/vault.db`)
 

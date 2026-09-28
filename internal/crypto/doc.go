@@ -1,10 +1,18 @@
-// Package crypto implements the SyncMyEnv key hierarchy using vetted
-// libraries only (no custom primitives):
+// Package crypto implements the SyncMyEnv key hierarchy on vetted libraries
+// only (age, x/crypto) — no custom primitives.
 //
-//	master password --Argon2id--> KEK --wraps--> vault identity (X25519)
-//	recovery key    ------------> KEK --wraps--> vault identity
+//	master password ──argon2id──▶ KEK₁ ─┐
+//	                                   ├─ XChaCha20-Poly1305 ─▶ vault identity
+//	recovery key ─────hkdf─────▶ KEK₂ ─┘      (age hybrid: ML-KEM-768 + X25519)
+//	                                                  │
+//	                                      vault recipient (public key)
+//	                                                  │
+//	                     the daemon seals every revision to the recipient
 //
-// The daemon encrypts new revisions to the vault's *public* key, so it can
-// run unattended without holding any secret. Decrypting (history, restore,
-// share) requires unlocking the identity. See docs/architecture.md.
+// Sealing needs only the public recipient, so the daemon can run unattended
+// without holding any secret. Opening (history, restore, share) needs the
+// identity, which is only ever unwrapped in memory.
+//
+// The hybrid key is post-quantum: ciphertext synced today stays safe even if
+// someone stores it and waits for a quantum computer.
 package crypto

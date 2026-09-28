@@ -23,9 +23,10 @@ func newRoot() *cobra.Command {
 	}
 	root.AddCommand(
 		newScanCmd(),
-		stub("init", "Create a new encrypted vault", 1),
+		newInitCmd(),
+		newStatusCmd(),
+		newKeysCmd(),
 		stub("list", "List protected files", 1),
-		stub("status", "Show vault, watcher and sync status", 1),
 		stub("protect [paths...]", "Start protecting env files", 1),
 		stub("unprotect [paths...]", "Stop protecting env files", 1),
 		stub("history <file>", "Show revisions of a protected file", 1),
