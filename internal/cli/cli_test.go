@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -62,12 +63,14 @@ func TestKeysLifecycle(t *testing.T) {
 		t.Fatalf("printed recovery key doesn't parse: %q %v", rkStr, err)
 	}
 
-	// file permissions: dir 0700, key file 0600
-	if st, _ := os.Stat(home); st.Mode().Perm() != 0o700 {
-		t.Fatalf("home perms %v", st.Mode().Perm())
-	}
-	if st, _ := os.Stat(filepath.Join(home, "keys.json")); st.Mode().Perm() != 0o600 {
-		t.Fatalf("keys.json perms %v", st.Mode().Perm())
+	// file permissions: dir 0700, key file 0600 (POSIX only)
+	if runtime.GOOS != "windows" {
+		if st, _ := os.Stat(home); st.Mode().Perm() != 0o700 {
+			t.Fatalf("home perms %v", st.Mode().Perm())
+		}
+		if st, _ := os.Stat(filepath.Join(home, "keys.json")); st.Mode().Perm() != 0o600 {
+			t.Fatalf("keys.json perms %v", st.Mode().Perm())
+		}
 	}
 	raw, _ := os.ReadFile(filepath.Join(home, "keys.json"))
 	if bytes.Contains(raw, []byte("correct horse")) || bytes.Contains(raw, []byte("AGE-SECRET-KEY")) {

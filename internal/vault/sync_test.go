@@ -1,6 +1,9 @@
 package vault
 
-import "testing"
+import (
+	"runtime"
+	"testing"
+)
 
 func TestSafeImportPath(t *testing.T) {
 	ok := []string{"~/Projects/app/.env", "~/code/x/.env.local", "/srv/app/.env.production", "~/w/env", "~/w/env.staging"}
@@ -24,6 +27,9 @@ func TestSafeImportPath(t *testing.T) {
 }
 
 func TestPortablePaths(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses Unix home paths")
+	}
 	t.Setenv("HOME", "/home/alice")
 	if got := ToPortable("/home/alice/Projects/app/.env"); got != "~/Projects/app/.env" {
 		t.Fatal(got)

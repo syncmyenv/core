@@ -394,16 +394,33 @@ func (v *Vault) activeFile(ctx context.Context, path string) (*fileRow, error) {
 	return f, nil
 }
 
-// CleanPath makes a path absolute and clean (symlinks in parent dirs resolved).
+// CleanPath makes a path absolute and clean, with symlinks in its directories
+// resolved — even when some of those directories don't exist (yet, or any
+// more): the deepest existing ancestor is resolved and the rest re-appended.
+// So "/var/x/app/.env" and "/private/var/x/app/.env" (macOS) are the same
+// file whether or not app/ still exists. The file itself is never resolved:
+// a symlinked .env is not followed.
 func CleanPath(p string) (string, error) {
 	abs, err := filepath.Abs(p)
 	if err != nil {
 		return "", err
 	}
-	if dir, err := filepath.EvalSymlinks(filepath.Dir(abs)); err == nil {
-		abs = filepath.Join(dir, filepath.Base(abs))
+	abs = filepath.Clean(abs)
+	dir, rest := filepath.Dir(abs), []string{filepath.Base(abs)}
+	for {
+		if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+			for i := len(rest) - 1; i >= 0; i-- {
+				resolved = filepath.Join(resolved, rest[i])
+			}
+			return resolved, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return abs, nil
+		}
+		rest = append(rest, filepath.Base(dir))
+		dir = parent
 	}
-	return filepath.Clean(abs), nil
 }
 
 func readEnvFile(p string) ([]byte, error) {

@@ -49,7 +49,7 @@ func TestScan(t *testing.T) {
 	}
 	got := map[string]Result{}
 	for _, r := range res {
-		got[r.RelPath] = r
+		got[filepath.ToSlash(r.RelPath)] = r
 	}
 	want := []string{"loose/env.production", "spotify/.env", "spotify/.env.local", "spotify/apps/api/.env"}
 	if len(res) != len(want) {

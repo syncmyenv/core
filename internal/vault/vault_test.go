@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/syncmyenv/core/internal/config"
@@ -119,8 +120,11 @@ func TestRestoreMissingKeepsMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	st, err := os.Stat(env)
-	if err != nil || st.Mode().Perm() != 0o600 {
-		t.Fatalf("restored file mode %v err %v", st.Mode().Perm(), err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
+		t.Fatalf("restored file mode %v", st.Mode().Perm())
 	}
 }
 
@@ -139,7 +143,7 @@ func TestSealedAtRest(t *testing.T) {
 			t.Fatalf("%s contains plaintext secret", f)
 		}
 	}
-	if st, _ := os.Stat(filepath.Join(home, "vault.db")); st.Mode().Perm() != 0o600 {
+	if st, _ := os.Stat(filepath.Join(home, "vault.db")); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Fatalf("vault.db mode %v", st.Mode().Perm())
 	}
 }
@@ -201,6 +205,26 @@ func TestSkipsNonRegularAndHuge(t *testing.T) {
 	for _, r := range res {
 		if r.Skipped == "" {
 			t.Fatalf("%s should be skipped", r.Path)
+		}
+	}
+}
+
+func TestCleanPathResolvesMissingDirs(t *testing.T) {
+	real := t.TempDir()
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	realResolved, _ := filepath.EvalSymlinks(real)
+	cases := map[string]string{
+		filepath.Join(link, ".env"):                    filepath.Join(realResolved, ".env"),
+		filepath.Join(link, "gone", "deeper", ".env"):  filepath.Join(realResolved, "gone", "deeper", ".env"),
+		filepath.Join(link, "gone", "..", "x", ".env"): filepath.Join(realResolved, "x", ".env"),
+	}
+	for in, want := range cases {
+		got, err := CleanPath(in)
+		if err != nil || got != want {
+			t.Errorf("CleanPath(%s) = %s, want %s", in, got, want)
 		}
 	}
 }

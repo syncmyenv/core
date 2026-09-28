@@ -42,13 +42,12 @@ func Acquire() (*Lock, error) {
 	}
 	if err := tryLock(f); err != nil {
 		f.Close()
-		if pid := readPID(p); pid > 0 {
+		if pid := readPID(p + ".pid"); pid > 0 {
 			return nil, fmt.Errorf("%w (pid %d)", ErrRunning, pid)
 		}
 		return nil, ErrRunning
 	}
-	_ = f.Truncate(0)
-	_, _ = f.WriteAt([]byte(strconv.Itoa(os.Getpid())+"\n"), 0)
+	_ = os.WriteFile(p+".pid", []byte(strconv.Itoa(os.Getpid())+"\n"), 0o600)
 	return &Lock{f: f}, nil
 }
 
@@ -70,7 +69,7 @@ func Running() (bool, int) {
 	}
 	defer f.Close()
 	if err := tryLock(f); err != nil {
-		return true, readPID(p)
+		return true, readPID(p + ".pid")
 	}
 	_ = unlock(f)
 	return false, 0

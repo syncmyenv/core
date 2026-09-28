@@ -37,7 +37,12 @@ func start(t *testing.T, beforeRun func(h *harness)) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{t: t, v: v, events: make(chan vault.SnapshotResult, 100), dir: t.TempDir()}
+	// Resolve symlinks (macOS: /var → /private/var) — the vault stores resolved paths.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &harness{t: t, v: v, events: make(chan vault.SnapshotResult, 100), dir: dir}
 	if beforeRun != nil {
 		beforeRun(h)
 	}
