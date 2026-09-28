@@ -246,3 +246,21 @@ func BenchmarkUnlockDefaultArgon(b *testing.B) {
 		_, _ = f.UnlockWithPassword("correct horse battery")
 	}
 }
+
+func TestDeviceCert(t *testing.T) {
+	a, b := mustKey(t), mustKey(t)
+	pub := []byte("device-public-key-32-bytes------")
+	cert := a.CertifyDevice(pub)
+	if !a.VerifyDeviceCert(pub, cert) {
+		t.Fatal("own cert rejected")
+	}
+	if b.VerifyDeviceCert(pub, cert) {
+		t.Fatal("cert from another vault accepted")
+	}
+	if a.VerifyDeviceCert([]byte("other-device-public-key-32-bytes"), cert) {
+		t.Fatal("cert transferable to another device key")
+	}
+	if bytes.Equal(cert, a.MAC(pub)) {
+		t.Fatal("cert key must be separate from the MAC key")
+	}
+}

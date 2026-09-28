@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/syncmyenv/core/internal/daemon"
+	"github.com/syncmyenv/core/internal/remote"
 	"github.com/syncmyenv/core/internal/vault"
 	"github.com/syncmyenv/core/internal/watcher"
 )
@@ -45,6 +46,8 @@ Most people want it to start on login instead:
 			defer v.Close()
 
 			logger := log.New(cmd.OutOrStdout(), "", log.LstdFlags)
+			pushNow := make(chan struct{}, 1)
+			go pushLoop(ctx, v, logger, pushNow)
 			w, err := watcher.New(v, watcher.Options{
 				Debounce: debounce,
 				OnSnapshot: func(r vault.SnapshotResult) {
@@ -52,7 +55,11 @@ Most people want it to start on login instead:
 						logger.Printf("! %s — %s", tilde(r.Path), r.Error)
 						return
 					}
-					logger.Printf("↑ %s → rev %d", tilde(r.Path), r.Seq)
+					logger.Printf("● %s → rev %d", tilde(r.Path), r.Seq)
+					select {
+					case pushNow <- struct{}{}:
+					default:
+					}
 				},
 				OnError: func(err error) { logger.Printf("! %v", err) },
 			})
@@ -138,4 +145,36 @@ func daemonStatus() string {
 		return "installed but not running — check " + tilde(s.LogPath)
 	}
 	return "not running — `sme daemon install` to version changes automatically"
+}
+
+// pushLoop uploads new revisions when the watcher seals one, and every 30s
+// (retrying after network errors). Password-free: needs only the device
+// token, device signing key and the vault's public recipient.
+func pushLoop(ctx context.Context, v *vault.Vault, logger *log.Logger, trigger <-chan struct{}) {
+	tick := time.NewTicker(30 * time.Second)
+	defer tick.Stop()
+	lastErr := ""
+	for {
+		cfg, err := remote.Load()
+		if err == nil && cfg.VaultID != "" {
+			s := &remote.Syncer{V: v, Cfg: cfg, Client: cfg.Client(version)}
+			n, err := s.Push(ctx)
+			switch {
+			case err != nil && err.Error() != lastErr:
+				logger.Printf("! push: %v", err)
+				lastErr = err.Error()
+			case err == nil && n > 0:
+				logger.Printf("↑ pushed %d revision(s) to %s", n, cfg.Server)
+				lastErr = ""
+			case err == nil:
+				lastErr = ""
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-trigger:
+		case <-tick.C:
+		}
+	}
 }

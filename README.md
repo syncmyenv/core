@@ -17,6 +17,8 @@ make build           # -> bin/syncmyenv (+ bin/sme symlink)
 ./bin/sme history ~/Projects/app/.env
 ./bin/sme restore ~/Projects/app/.env --version 2
 ./bin/sme restore --missing          # everything deleted / new machine
+./bin/sme login                      # or: sme login env.mycompany.com (self-hosted)
+./bin/sme sync                       # push/pull; the daemon pushes automatically
 ```
 
 ## Status
@@ -31,7 +33,8 @@ make build           # -> bin/syncmyenv (+ bin/sme symlink)
 | `history`, `restore` | ✅ revisions; restore by version / `--to` / `--missing`, never loses data |
 | `keys verify`, `keys passwd` | ✅ check password/recovery key, change password (or reset via recovery key) |
 | `daemon`, `daemon install/uninstall` | ✅ watches files, seals every change; launchd / systemd --user |
-| folder remote (BYO storage) | Phase 1 — next |
+| `login`, `logout`, `sync` | ✅ Cloud or self-hosted server; signed, verified, end-to-end encrypted — see [docs/sync.md](docs/sync.md) |
+| folder / S3 remotes (BYO storage) | paused |
 | `sync` | Phase 2 |
 | `share` | Phase 4 |
 
@@ -45,7 +48,8 @@ internal/config/    paths (~/.syncmyenv, SYNCMYENV_HOME)
 internal/crypto/    key hierarchy (Argon2id + age/X25519)
 internal/vault/     SQLite vault
 internal/watcher/   fsnotify watcher (parent-dir watches, debounce)
-internal/storage/   remote backend interface (folder, S3/R2, server)
+internal/remote/    server connection + syncer (push, verify, pull)
+protocol/           PUBLIC: sync wire types + HTTP client (imported by the server)
 docs/               architecture notes
 ```
 

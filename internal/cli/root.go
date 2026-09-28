@@ -33,7 +33,9 @@ func newRoot() *cobra.Command {
 		newHistoryCmd(),
 		newRestoreCmd(),
 		newDaemonCmd(),
-		stub("sync", "Sync encrypted revisions with remote storage", 2),
+		newLoginCmd(),
+		newLogoutCmd(),
+		newSyncCmd(),
 		stub("share <file>", "Create a temporary encrypted share", 4),
 	)
 	return root

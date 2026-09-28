@@ -23,8 +23,9 @@ var ErrTooLarge = errors.New("crypto: data too large")
 
 // VaultKey is the vault's secret identity. Keep it in memory only.
 type VaultKey struct {
-	id     *age.HybridIdentity
-	macKey []byte
+	id      *age.HybridIdentity
+	macKey  []byte
+	certKey []byte
 }
 
 // NewVaultKey generates a fresh post-quantum hybrid vault key.
@@ -37,12 +38,37 @@ func NewVaultKey() (*VaultKey, error) {
 }
 
 func newVaultKey(id *age.HybridIdentity) (*VaultKey, error) {
-	mac := make([]byte, 32)
-	r := hkdf.New(sha256.New, []byte(id.String()), nil, []byte("syncmyenv/v1/mac-key"))
-	if _, err := io.ReadFull(r, mac); err != nil {
+	mac, err := derive(id, "syncmyenv/v1/mac-key")
+	if err != nil {
 		return nil, err
 	}
-	return &VaultKey{id: id, macKey: mac}, nil
+	cert, err := derive(id, "syncmyenv/v1/device-cert-key")
+	if err != nil {
+		return nil, err
+	}
+	return &VaultKey{id: id, macKey: mac, certKey: cert}, nil
+}
+
+func derive(id *age.HybridIdentity, info string) ([]byte, error) {
+	k := make([]byte, 32)
+	_, err := io.ReadFull(hkdf.New(sha256.New, []byte(id.String()), nil, []byte(info)), k)
+	return k, err
+}
+
+// CertifyDevice vouches for a device signing key. Only holders of the vault
+// key can produce (or check) a certificate — the server can't, even though it
+// knows the public recipient. This is what stops a malicious server from
+// forging log entries: sealing to the recipient is public, certifying isn't.
+func (k *VaultKey) CertifyDevice(devicePub []byte) []byte {
+	h := hmac.New(sha256.New, k.certKey)
+	h.Write([]byte("syncmyenv/device-cert/v1\x00"))
+	h.Write(devicePub)
+	return h.Sum(nil)
+}
+
+// VerifyDeviceCert checks a certificate made by CertifyDevice.
+func (k *VaultKey) VerifyDeviceCert(devicePub, cert []byte) bool {
+	return hmac.Equal(k.CertifyDevice(devicePub), cert)
 }
 
 // parseVaultKey restores a key from its secret encoding (AGE-SECRET-KEY-PQ-1…).
