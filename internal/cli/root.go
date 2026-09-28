@@ -15,7 +15,7 @@ var (
 
 func newRoot() *cobra.Command {
 	root := &cobra.Command{
-		Use:           "syncmyenv",
+		Use:           "sme",
 		Short:         "Local-first, encrypted backup and sync for your .env files",
 		SilenceUsage:  true,
 		SilenceErrors: false,

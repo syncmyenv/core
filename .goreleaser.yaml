@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# Release: git tag v0.1.0 && git push origin v0.1.0  (see .github/workflows/release.yml)
+# Local dry run: goreleaser release --snapshot --clean --skip=sign
+version: 2
+
+project_name: sme
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: sme
+    main: ./cmd/syncmyenv
+    binary: sme
+    env:
+      - CGO_ENABLED=0 # pure Go (sqlite via wasm), fully static
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/syncmyenv/core/internal/cli.version={{ .Version }}
+      - -X github.com/syncmyenv/core/internal/cli.commit={{ .ShortCommit }}
+    mod_timestamp: "{{ .CommitTimestamp }}" # reproducible builds
+
+archives:
+  - id: sme
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "sme_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - SECURITY.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# Keyless cosign signature over checksums.txt (OIDC identity = this repo's release workflow).
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    certificate: "${artifact}.pem"
+    signature: "${artifact}.sig"
+    args:
+      - sign-blob
+      - --output-certificate=${certificate}
+      - --output-signature=${signature}
+      - ${artifact}
+      - --yes
+
+homebrew_casks:
+  - name: sme
+    binaries: [sme]
+    repository:
+      owner: syncmyenv
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: https://syncmyenv.com
+    description: Local-first, end-to-end encrypted backup, versioning and sync for .env files
+    license: Apache-2.0
+    commit_author:
+      name: SyncMyEnv
+      email: 333845921+syncmyenv-dev@users.noreply.github.com
+    hooks:
+      post:
+        # binaries aren't notarized yet: drop the quarantine flag so macOS runs them
+        install: |
+          if OS.mac? && system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/sme"]
+          end
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  github:
+    owner: syncmyenv
+    name: core
+  draft: false
+  prerelease: auto # v0.x-rc… → prerelease
+  footer: |
+    **Install**
+    ```bash
+    brew install syncmyenv/tap/sme
+    curl -fsSL https://syncmyenv.com/install.sh | sh
+    ```
+    **Verify:** see [SECURITY.md](https://github.com/syncmyenv/core/blob/main/SECURITY.md#verifying-releases).

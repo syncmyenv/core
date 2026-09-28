@@ -20,3 +20,12 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - run: go build ./cmd/syncmyenv
+
+  release-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: check

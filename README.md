@@ -5,7 +5,17 @@ file watcher, version history, restore and sync.
 
 > Local-first, encrypted, automatic, recoverable.
 
-## Quick start
+## Install
+
+```bash
+brew install syncmyenv/tap/sme                          # macOS / Linux
+curl -fsSL https://syncmyenv.com/install.sh | sh        # verifies sha256 + sigstore signature
+go install github.com/syncmyenv/core/cmd/syncmyenv@latest
+```
+
+Releases are signed — see [SECURITY.md](SECURITY.md#verifying-releases).
+
+## Quick start (from source)
 
 ```bash
 make build           # -> bin/syncmyenv (+ bin/sme symlink)
@@ -53,3 +63,18 @@ docs/               architecture notes
 ```
 
 See [docs/architecture.md](docs/architecture.md).
+
+## Releasing
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+`.github/workflows/release.yml` runs GoReleaser: static binaries for macOS/Linux/Windows
+(amd64 + arm64), `checksums.txt` signed with cosign (keyless), GitHub build provenance, and the
+Homebrew cask in [syncmyenv/homebrew-tap](https://github.com/syncmyenv/homebrew-tap)
+(needs the `HOMEBREW_TAP_TOKEN` secret). Dry run: `goreleaser release --snapshot --clean --skip=sign`.
+
+## License
+
+[Apache-2.0](LICENSE)
