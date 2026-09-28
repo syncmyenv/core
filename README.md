@@ -8,7 +8,6 @@ file watcher, version history, restore and sync.
 ## Quick start
 
 ```bash
-go mod tidy          # first time only
 make build           # -> bin/syncmyenv (+ bin/sme symlink)
 ./bin/sme init                       # create vault, prints your recovery key
 ./bin/sme protect ~/Projects         # scan + choose + seal revision 1
