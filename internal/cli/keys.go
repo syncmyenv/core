@@ -113,7 +113,29 @@ func newStatusCmd() *cobra.Command {
 			fmt.Fprintf(w, "created      %s\n", f.CreatedAt.Local().Format(time.DateTime))
 			fmt.Fprintf(w, "unlock       %s\n", strings.Join(methods, ", "))
 			fmt.Fprintf(w, "location     %s\n", home)
-			fmt.Fprintf(w, "protected    — (coming next: `sme protect`)\n")
+			v, err := vault.Open(cmd.Context())
+			if err != nil {
+				return err
+			}
+			defer v.Close()
+			files, err := v.List(cmd.Context())
+			if err != nil {
+				return err
+			}
+			missing, err := v.Missing(cmd.Context())
+			if err != nil {
+				return err
+			}
+			revs, projects := 0, map[string]bool{}
+			for _, f := range files {
+				revs += f.Revisions
+				projects[f.Project] = true
+			}
+			fmt.Fprintf(w, "protected    %d file(s) in %d project(s) · %d revision(s)\n", len(files), len(projects), revs)
+			if len(missing) > 0 {
+				fmt.Fprintf(w, "missing      %d file(s) — run `sme restore --missing`\n", len(missing))
+			}
+			fmt.Fprintf(w, "sync         local only (remotes: phase 2)\n")
 			return nil
 		},
 	}

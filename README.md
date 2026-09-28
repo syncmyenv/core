@@ -11,8 +11,11 @@ file watcher, version history, restore and sync.
 go mod tidy          # first time only
 make build           # -> bin/syncmyenv (+ bin/sme symlink)
 ./bin/sme init                       # create vault, prints your recovery key
-./bin/sme status
-./bin/sme scan ~/Projects ~/Work
+./bin/sme protect ~/Projects         # scan + choose + seal revision 1
+./bin/sme snapshot                   # seal changes (daemon will automate this)
+./bin/sme history ~/Projects/app/.env
+./bin/sme restore ~/Projects/app/.env --version 2
+./bin/sme restore --missing          # everything deleted / new machine
 ```
 
 ## Status
@@ -21,9 +24,12 @@ make build           # -> bin/syncmyenv (+ bin/sme symlink)
 |---|---|
 | `scan` | ✅ works — discovers `.env`, `.env.*`, `env`, `env.*`; skips templates, `node_modules`, `.git`, etc. |
 | `init` | ✅ post-quantum vault key, wrapped by master password + recovery key |
-| `status` | ✅ vault info (files/sync come with `protect`) |
+| `status` | ✅ vault, protected files, missing files |
+| `protect`, `unprotect`, `list` | ✅ choose files (dir scan asks first), seal contents |
+| `snapshot` | ✅ seal a revision for every changed file — no password needed |
+| `history`, `restore` | ✅ revisions; restore by version / `--to` / `--missing`, never loses data |
 | `keys verify`, `keys passwd` | ✅ check password/recovery key, change password (or reset via recovery key) |
-| `protect`, `list`, `history`, `restore`, `daemon` | Phase 1 — next |
+| `daemon` | Phase 1 — next (automatic snapshots via file watching) |
 | `sync` | Phase 2 |
 | `share` | Phase 4 |
 

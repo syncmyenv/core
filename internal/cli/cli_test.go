@@ -120,3 +120,86 @@ func TestNoTTYWithoutFlag(t *testing.T) {
 		t.Fatalf("want tty error, got %v", err)
 	}
 }
+
+func TestProtectHistoryRestore(t *testing.T) {
+	t.Setenv(config.HomeEnv, filepath.Join(t.TempDir(), "sme"))
+	proj := filepath.Join(t.TempDir(), "spotify")
+	os.MkdirAll(filepath.Join(proj, ".git"), 0o755)
+	os.MkdirAll(filepath.Join(proj, "node_modules", "x"), 0o755)
+	env := filepath.Join(proj, ".env")
+	os.WriteFile(env, []byte("DB=one\n"), 0o600)
+	os.WriteFile(filepath.Join(proj, ".env.local"), []byte("X=1\n"), 0o600)
+	os.WriteFile(filepath.Join(proj, ".env.example"), []byte("DB=\n"), 0o600)
+	os.WriteFile(filepath.Join(proj, "node_modules", "x", ".env"), []byte("nope\n"), 0o600)
+
+	if _, err := run(t, "", "protect", env); err == nil {
+		t.Fatal("protect before init should fail")
+	}
+	if _, err := run(t, "correct horse battery\n", "init", "--password-stdin"); err != nil {
+		t.Fatal(err)
+	}
+
+	// directory scan needs confirmation; non-tty without --yes refuses
+	if _, err := run(t, "", "protect", proj); err == nil || !strings.Contains(err.Error(), "--yes") {
+		t.Fatalf("want --yes error, got %v", err)
+	}
+	out, err := run(t, "", "protect", proj, "--yes")
+	if err != nil || !strings.Contains(out, "2 file(s) protected") || strings.Contains(out, "node_modules") || strings.Contains(out, ".env.example") {
+		t.Fatalf("protect dir: %v\n%s", err, out)
+	}
+
+	out, _ = run(t, "", "list")
+	if !strings.Contains(out, "spotify") || strings.Count(out, "\n") != 3 {
+		t.Fatalf("list:\n%s", out)
+	}
+
+	os.WriteFile(env, []byte("DB=two\n"), 0o600)
+	out, _ = run(t, "", "snapshot")
+	if !strings.Contains(out, "→ rev 2") || !strings.Contains(out, "1 changed, 1 unchanged") {
+		t.Fatalf("snapshot:\n%s", out)
+	}
+
+	out, _ = run(t, "", "history", env)
+	if !strings.Contains(out, "protect") || !strings.Contains(out, "snapshot") {
+		t.Fatalf("history:\n%s", out)
+	}
+
+	os.Remove(env)
+	out, _ = run(t, "", "status")
+	if !strings.Contains(out, "2 file(s) in 1 project(s) · 3 revision(s)") || !strings.Contains(out, "missing      1 file(s)") {
+		t.Fatalf("status:\n%s", out)
+	}
+
+	if _, err := run(t, "wrong password!!\n", "restore", "--missing", "--password-stdin"); err == nil {
+		t.Fatal("restore with wrong password")
+	}
+	out, err = run(t, "correct horse battery\n", "restore", "--missing", "--password-stdin")
+	if err != nil || !strings.Contains(out, "restored") {
+		t.Fatalf("restore --missing: %v\n%s", err, out)
+	}
+	if b, _ := os.ReadFile(env); string(b) != "DB=two\n" {
+		t.Fatalf("restored %q", b)
+	}
+
+	// on-disk content is already in history (the restore rev), so nothing extra to save
+	out, err = run(t, "correct horse battery\n", "restore", env, "--version", "1", "--password-stdin")
+	if err != nil || !strings.Contains(out, "from rev 1") || strings.Contains(out, "previous content saved") {
+		t.Fatalf("restore v1: %v\n%s", err, out)
+	}
+	if b, _ := os.ReadFile(env); string(b) != "DB=one\n" {
+		t.Fatalf("restored v1 %q", b)
+	}
+}
+
+func TestRestoreSavesUnsnapshottedEdits(t *testing.T) {
+	t.Setenv(config.HomeEnv, filepath.Join(t.TempDir(), "sme"))
+	env := filepath.Join(t.TempDir(), ".env")
+	os.WriteFile(env, []byte("A=1\n"), 0o600)
+	run(t, "correct horse battery\n", "init", "--password-stdin")
+	run(t, "", "protect", env)
+	os.WriteFile(env, []byte("A=edited-but-never-snapshotted\n"), 0o600)
+	out, err := run(t, "correct horse battery\n", "restore", env, "--version", "1", "--password-stdin")
+	if err != nil || !strings.Contains(out, "previous content saved as rev 2") {
+		t.Fatalf("%v\n%s", err, out)
+	}
+}

@@ -54,18 +54,33 @@ recovery key (240 bit) ──hkdf-sha256──────▶ KEK₂ ─┘   ag
 look-alikes accepted when typing). Shown once at `init`. Typos are caught by the checksum
 before an unlock attempt.
 
-## Local vault (`~/.syncmyenv/vault.db`)
+## Local vault (`~/.syncmyenv/`, dir 0700, files 0600)
 
-| Table | Purpose |
+| File | Contents |
 |---|---|
-| `projects` | id, encrypted name, identity hint (git remote URL, encrypted) |
-| `files` | id, project_id, encrypted path relative to scan root, root id, protected flag |
-| `revisions` | id, file_id, seq, content MAC, blob id, created_at, device_id |
-| `sync_queue` | pending uploads/downloads |
-| `devices` | device id, name, public key |
-| `settings` | scan roots, excludes, remote config |
+| `keys.json` | wrapped vault key (see above) — safe to sync |
+| `vault.db` | SQLite: `files`, `revisions` |
+| `change.key` | device-local HMAC key for change detection — never synced |
 
-Revisions are full encrypted snapshots (env files are small).
+| Table | Columns |
+|---|---|
+| `files` | id, **path (plaintext, local only)**, project, protected_at, removed_at |
+| `revisions` | file_id, seq, change_mac, size, **sealed** (age ciphertext), source (`protect`/`snapshot`/`restore`), device, created_at |
+
+Design decisions:
+
+- **Contents are always sealed**, even locally. A stolen `vault.db` reveals no secret values.
+- **Paths are plaintext locally.** The daemon must know what to watch *without* your password,
+  and the files themselves live on this same disk. Anything sent to a remote seals paths too.
+- **Change detection** uses `HMAC(change.key, content)`. The daemon can't use the vault key
+  (it doesn't have it). The change key only guards against someone who can already read the
+  plaintext `.env` files on this disk, so it adds no exposure. It never leaves the device.
+- Revisions are **full sealed snapshots** (env files are tiny) — no diffs, no chains to break.
+- **Restore never loses data**: current on-disk content is snapshotted first if it isn't
+  already in history; the restore itself is recorded as a new revision. Writes are atomic
+  (temp + rename) and keep the file's mode (new files get 0600).
+- **Unprotect keeps history**; re-protecting continues it.
+- Skipped: symlinks, non-regular files, files > 1 MiB.
 
 ## Watching
 

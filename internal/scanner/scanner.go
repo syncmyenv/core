@@ -160,3 +160,19 @@ func projectDir(dir, root string, cache map[string]string) (string, bool) {
 	cache[dir] = ""
 	return dir, false
 }
+
+// ProjectOf names the project a file belongs to: the nearest git root above
+// it (up to the home directory), else its parent directory.
+func ProjectOf(path string) string {
+	dir := filepath.Dir(path)
+	home, _ := os.UserHomeDir()
+	for cur := dir; ; cur = filepath.Dir(cur) {
+		if _, err := os.Stat(filepath.Join(cur, ".git")); err == nil {
+			return filepath.Base(cur)
+		}
+		if cur == home || cur == filepath.Dir(cur) {
+			break
+		}
+	}
+	return filepath.Base(dir)
+}
