@@ -12,7 +12,8 @@ go mod tidy          # first time only
 make build           # -> bin/syncmyenv (+ bin/sme symlink)
 ./bin/sme init                       # create vault, prints your recovery key
 ./bin/sme protect ~/Projects         # scan + choose + seal revision 1
-./bin/sme snapshot                   # seal changes (daemon will automate this)
+./bin/sme daemon install             # start on login: every save becomes a revision
+./bin/sme snapshot                   # or seal changes by hand
 ./bin/sme history ~/Projects/app/.env
 ./bin/sme restore ~/Projects/app/.env --version 2
 ./bin/sme restore --missing          # everything deleted / new machine
@@ -29,7 +30,8 @@ make build           # -> bin/syncmyenv (+ bin/sme symlink)
 | `snapshot` | ✅ seal a revision for every changed file — no password needed |
 | `history`, `restore` | ✅ revisions; restore by version / `--to` / `--missing`, never loses data |
 | `keys verify`, `keys passwd` | ✅ check password/recovery key, change password (or reset via recovery key) |
-| `daemon` | Phase 1 — next (automatic snapshots via file watching) |
+| `daemon`, `daemon install/uninstall` | ✅ watches files, seals every change; launchd / systemd --user |
+| folder remote (BYO storage) | Phase 1 — next |
 | `sync` | Phase 2 |
 | `share` | Phase 4 |
 

@@ -4,6 +4,7 @@ go 1.24
 
 require (
 	filippo.io/age v1.3.1
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/ncruces/go-sqlite3 v0.32.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.48.0

@@ -153,12 +153,28 @@ type SnapshotResult struct {
 // Snapshot seals a new revision for every protected file whose content
 // changed. Needs no password: it only uses the public recipient.
 func (v *Vault) Snapshot(ctx context.Context) ([]SnapshotResult, error) {
+	return v.SnapshotPaths(ctx, nil)
+}
+
+// SnapshotPaths is Snapshot limited to the given absolute paths (nil = all).
+// Paths that aren't protected are ignored.
+func (v *Vault) SnapshotPaths(ctx context.Context, only []string) ([]SnapshotResult, error) {
 	files, err := v.List(ctx)
 	if err != nil {
 		return nil, err
 	}
+	var want map[string]bool
+	if only != nil {
+		want = make(map[string]bool, len(only))
+		for _, p := range only {
+			want[p] = true
+		}
+	}
 	out := make([]SnapshotResult, 0, len(files))
 	for _, f := range files {
+		if want != nil && !want[f.Path] {
+			continue
+		}
 		r := SnapshotResult{Path: f.Path}
 		data, err := readEnvFile(f.Path)
 		switch {

@@ -135,6 +135,7 @@ func newStatusCmd() *cobra.Command {
 			if len(missing) > 0 {
 				fmt.Fprintf(w, "missing      %d file(s) — run `sme restore --missing`\n", len(missing))
 			}
+			fmt.Fprintf(w, "daemon       %s\n", daemonStatus())
 			fmt.Fprintf(w, "sync         local only (remotes: phase 2)\n")
 			return nil
 		},

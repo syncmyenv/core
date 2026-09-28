@@ -82,11 +82,28 @@ Design decisions:
 - **Unprotect keeps history**; re-protecting continues it.
 - Skipped: symlinks, non-regular files, files > 1 MiB.
 
-## Watching
+## Daemon (`sme daemon`)
 
-Editors save via temp-file + rename, which drops file-level watches. Watch **parent
-directories**, filter by protected file names, debounce ~500ms, then MAC → compare →
-new revision if changed.
+```text
+fsnotify (parent dirs) ─▶ filter: protected path? ─▶ debounce 500ms ─▶ SnapshotPaths
+       ▲                                                                  │
+       └── reload every 10s (new/unprotected files, dirs that reappeared)  ▼
+           reconcile every 5m + on event overflow ─────────────▶ Snapshot(all)
+```
+
+- Watches **parent directories**, not files: editors save via temp file + rename, which
+  drops file-level watches. Events are filtered to protected paths only.
+- **Debounce**: a burst of saves becomes one revision with the final content.
+- **Startup snapshot** catches edits made while the daemon was stopped.
+- **Reload** picks up files protected/unprotected by the CLI while it runs, and re-adds
+  watches for directories that were deleted and came back (e.g. re-cloned repos).
+- **Reconcile** every 5 minutes (and on inotify overflow) — belt and braces for missed events
+  (sleep/wake, network filesystems).
+- Needs **no password**: sealing uses the public recipient; change detection the device key.
+- **Single instance**: `~/.syncmyenv/daemon.lock` (flock, released by the OS on crash).
+- `sme daemon install` → launchd agent (`~/Library/LaunchAgents/com.syncmyenv.daemon.plist`)
+  or systemd user unit (`~/.config/systemd/user/syncmyenv.service`). Logs to
+  `~/.syncmyenv/daemon.log` on macOS, `journalctl --user -u syncmyenv` on Linux.
 
 ## Restore on a new machine
 

@@ -32,7 +32,7 @@ func newRoot() *cobra.Command {
 		newSnapshotCmd(),
 		newHistoryCmd(),
 		newRestoreCmd(),
-		stub("daemon", "Run the background watcher", 1),
+		newDaemonCmd(),
 		stub("sync", "Sync encrypted revisions with remote storage", 2),
 		stub("share <file>", "Create a temporary encrypted share", 4),
 	)
