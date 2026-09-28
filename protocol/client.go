@@ -67,6 +67,53 @@ func ValidateURL(raw string) (string, error) {
 	return u.String(), nil
 }
 
+// Discover turns what the user typed into the URL of a SyncMyEnv server that
+// actually answers. With an explicit scheme it only validates. Without one it
+// probes https:// first and, for local/LAN hosts only, falls back to http://
+// — so "localhost:8443" works whether that port speaks TLS or not.
+func Discover(ctx context.Context, raw string, hc *http.Client) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if strings.Contains(raw, "://") {
+		return ValidateURL(raw)
+	}
+	if hc == nil {
+		hc = &http.Client{Timeout: 5 * time.Second}
+	}
+	candidates := []string{"https://" + raw}
+	if h, err := url.Parse("x://" + raw); err == nil && isLocal(h.Hostname()) {
+		candidates = append(candidates, "http://"+raw)
+	}
+	var tried []string
+	for _, c := range candidates {
+		u, err := ValidateURL(c)
+		if err != nil {
+			return "", err
+		}
+		if probe(ctx, hc, u) {
+			return u, nil
+		}
+		tried = append(tried, u)
+	}
+	return "", fmt.Errorf("no SyncMyEnv server answering at %s", strings.Join(tried, " or "))
+}
+
+// probe reports whether base serves the SyncMyEnv health endpoint.
+func probe(ctx context.Context, hc *http.Client, base string) bool {
+	req, err := http.NewRequestWithContext(ctx, "GET", base+"/api/v1/health", nil)
+	if err != nil {
+		return false
+	}
+	res, err := hc.Do(req)
+	if err != nil {
+		return false
+	}
+	defer res.Body.Close()
+	var h struct {
+		Status string `json:"status"`
+	}
+	return res.StatusCode == http.StatusOK && json.NewDecoder(io.LimitReader(res.Body, 4096)).Decode(&h) == nil && h.Status == "ok"
+}
+
 func isLocal(host string) bool {
 	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
 		return true

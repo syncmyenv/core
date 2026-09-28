@@ -39,7 +39,7 @@ Set SYNCMYENV_SERVER to change the default for everyone on a machine.`,
 			if len(args) == 1 {
 				server = args[0]
 			}
-			server, err := protocol.ValidateURL(server)
+			server, err := protocol.Discover(cmd.Context(), server, nil)
 			if err != nil {
 				return err
 			}
